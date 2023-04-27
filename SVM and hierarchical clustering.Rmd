@@ -1,0 +1,84 @@
+---
+title: "SVM and hierarchical clustering"
+author: "Cary Ni"
+date: "2023-04-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ISLR2)
+library(caret)
+library(kernlab)
+knitr::opts_chunk$set(
+  echo = TRUE,
+  fig.align = 'center',
+  strip.white = TRUE)
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+```
+
+```{r}
+# load the dataset, specifiy the factor variables
+auto_df = read_csv("auto.csv", show_col_types = FALSE) %>% 
+  janitor::clean_names() %>% 
+  na.omit() %>% 
+  mutate(
+    cylinders = as_factor(cylinders),
+    origin = as_factor(origin),
+    mpg_cat = as_factor(mpg_cat))
+# data partition
+set.seed(2023)
+index_auto = createDataPartition(y = auto_df$mpg_cat, p = 0.7, list = FALSE)
+```
+
+## Fit a support vector classifier with linear kernel
+
+```{r}
+ctrl_1 =  trainControl(method = "cv", number = 10)
+# kernlab
+set.seed(1)
+svml_model = train(mpg_cat ~ . ,
+                   data = auto_df[index_auto,],
+                   method = "svmLinear",
+                   # setting tunning parameters
+                   tuneGrid = data.frame(C = exp(seq(-5,2,len=50))),
+                   trControl = ctrl_1)
+# find best cost parameter from cross-validation
+plot(svml_model, highlight = TRUE, xTrans = log)
+# best cost
+svml_model$bestTune
+# find training error rate of the final model
+svml_model$finalModel
+# find test accurancy and error rate of the final model
+pred_svml = predict(svml_model, newdata = auto_df[-index_auto,])
+confusionMatrix(data = pred_svml,
+                reference = auto_df$mpg_cat[-index_auto])
+```
+
+(1a) The training error rate of the fitted classifier is 0.0507 and the test error rate is given by 1-Accurancy, which is 0.138 in this case.
+
+## Fit a support vector classifier with radial kernel
+
+```{r}
+# setting tunning parameters
+svmr_grid = expand.grid(C = exp(seq(1,7,len=50)),
+                        sigma = exp(seq(-10,-2,len=20)))
+# tunes over both cost and sigma
+set.seed(1)
+svmr_model = train(mpg_cat ~ . ,
+                   data = auto_df[index_auto,],
+                   method = "svmRadialSigma",
+                   tuneGrid = svmr_grid,
+                   trControl = ctrl_1)
+
+# find best cost parameter from cross-validation
+svmr_model$bestTune
+# find training error rate of the final model
+svmr_model$finalModel
+# find test accurancy and error rate of the final model
+pred_svmr = predict(svmr_model, newdata = auto_df[-index_auto,])
+confusionMatrix(data = pred_svmr,
+                reference = auto_df$mpg_cat[-index_auto])
+```
+
+(1b) The training error rate of the fitted classifier is 0.0145 and the test error rate is given by 1-Accurancy, which is 0.138 in this case.
